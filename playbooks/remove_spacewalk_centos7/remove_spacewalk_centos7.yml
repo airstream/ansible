@@ -1,0 +1,85 @@
+---
+- hosts: all
+  tasks:
+    - name: Remove spacewalk
+      block:
+        - name: Remove spacewalk specific files
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /etc/pki/rpm-gpg/RPM-GPG-KEY-spacewalk-2.10-client         # spacewalk-client-repo
+            - /etc/pki/rpm-gpg/RPM-GPG-KEY-spacewalk-nightly-client      # spacewalk-client-repo
+            - /etc/yum.repos.d/spacewalk-client-nightly.repo             # spacewalk-client-repo
+            - /etc/yum.repos.d/spacewalk-client.repo                     # spacewalk-client-repo
+            - /etc/sysconfig/rhn                                         # rhn-client-tools, directory
+
+        - name: Remove spacewalk software and additions
+          yum:
+            name:
+              - spacewalk-client-repo       # /etc/yum.repos.d/spacewalk-client-nightly.repo, /etc/yum.repos.d/spacewalk-client.repo
+              - rhn-org-trusted-ssl-cert    # /usr/share/rhn/RHN-ORG-TRUSTED-SSL-CERT
+              - rhn-client-tools            # /etc/sysconfig/rhn/
+              - rhn-check
+              - rhn-setup
+              - rhnsd
+              - m2crypto
+              - yum-rhn-plugin
+              - osad
+              - openscap-utils
+              - scap-security-guide
+              - spacewalk-oscap
+              - rhncfg
+              - rhncfg-management
+              - rhncfg-actions
+              - rhncfg-client
+              - openscap
+              - openscap-scanner
+              - openscap-containers
+              - jabberpy
+              - python2-osa-common
+              - python2-osad
+              - python2-rhn-check
+              - python2-rhn-client-tools
+              - python2-rhn-setup
+              - python2-rhncfg
+              - python2-rhncfg-actions
+              - python2-rhncfg-client
+              - python2-rhnlib
+              - python2-spacewalk-oscap
+              - python2-spacewalk-usix
+              - spacewalk-usix
+            state: absent
+
+        - name: Remove spacewalk rpm key
+          rpm_key:
+            state: absent
+            key: 30912C76  # gpg-pubkey-30912c76-5e54ee27
+
+        - name: Remove enabled from /etc/yum/pluginconf.d/fastestmirror.conf
+          lineinfile:
+            path: /etc/yum/pluginconf.d/fastestmirror.conf
+            regexp: '(?#)\s*enabled'
+            state: absent
+            backup: yes
+
+        - name: Remove spacewalk unnecessary ssl files, remove /var/cache/yum directory
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /usr/share/rhn/RHN-ORG-TRUSTED-SSL-CERT                    # rhn-org-trusted-ssl-cert
+            - /etc/pki/ca-trust/source/anchors/RHN-ORG-TRUSTED-SSL-CERT  # symlink
+            - /var/cache/yum
+
+        - name: Enable base,updates repos
+          command:
+            cmd: yum-config-manager --enable base,updates
+            warn: no
+
+        - name: Run update-ca-trust
+          shell: update-ca-trust
+
+      become: yes
+      become_method: sudo
+      when: ansible_distribution == 'CentOS' and ansible_distribution_major_version == '7'
